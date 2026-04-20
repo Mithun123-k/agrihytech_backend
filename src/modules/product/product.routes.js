@@ -12,7 +12,7 @@ const { checkSubscription } = require("../../middleware/checkSubscription");
 router.post(
   "/create",
   verifyToken,
-  checkSubscription, // only SUBSCRIBED users can add product
+  // checkSubscription, // only SUBSCRIBED users can add product
   isAdmin, // only ADMIN can add product
   upload.array("images", 5),
   productController.createProduct

@@ -1,31 +1,43 @@
-// product.service.js
 const Product = require("./product.model");
 const Brand = require("../brand/brand.model");
 const Category = require("../category/category.model");
-const fs = require("fs");
+const cloudinary = require("../../config/cloudinary");
 
+// 🔹 Create Product
 exports.createProduct = async (data, files, userId) => {
-
-  // 🔥 check brand exists
+  // 🔥 validate brand
   const brandExists = await Brand.findById(data.brand);
   if (!brandExists) {
     throw new Error("Invalid Brand ID");
   }
 
-  let imagePaths = [];
+  // 🔥 validate category
+  if (data.category) {
+    const catExists = await Category.findById(data.category);
+    if (!catExists) {
+      throw new Error("Invalid Category ID");
+    }
+  }
+
+  // 🔥 handle images
+  let images = [];
 
   if (files && files.length > 0) {
-    imagePaths = files.map(file => file.path);
+    images = files.map(file => ({
+      url: file.path,          // ✅ Cloudinary URL
+      public_id: file.filename // ✅ needed for delete
+    }));
   }
 
   const product = await Product.create({
     ...data,
-    images: imagePaths,
+    images,
     createdBy: userId
   });
 
   return product;
 };
+
 
 // 🔹 Get All Products
 exports.getAllProducts = async (query) => {
@@ -45,9 +57,13 @@ exports.getAllProducts = async (query) => {
 
   const total = await Product.countDocuments(filter);
 
-  return { products, total };
+  return {
+    products,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit)
+  };
 };
-
 
 
 // 🔹 Get Single Product
@@ -65,11 +81,10 @@ exports.getSingleProduct = async (id) => {
 };
 
 
-
 // 🔹 Update Product
 exports.updateProduct = async (id, data, files) => {
-
   const product = await Product.findById(id);
+
   if (!product) {
     throw new Error("Product not found");
   }
@@ -86,16 +101,22 @@ exports.updateProduct = async (id, data, files) => {
     if (!catExists) throw new Error("Invalid Category ID");
   }
 
-  // 🔥 handle new images
+  // 🔥 replace images
   if (files && files.length > 0) {
-    // delete old images
+    // ❌ delete old images from Cloudinary
     if (product.images && product.images.length > 0) {
-      product.images.forEach(img => {
-        if (fs.existsSync(img)) fs.unlinkSync(img);
-      });
+      for (let img of product.images) {
+        if (img.public_id) {
+          await cloudinary.uploader.destroy(img.public_id);
+        }
+      }
     }
 
-    product.images = files.map(file => file.path);
+    // ✅ save new images
+    product.images = files.map(file => ({
+      url: file.path,
+      public_id: file.filename
+    }));
   }
 
   // 🔥 update fields
@@ -109,23 +130,24 @@ exports.updateProduct = async (id, data, files) => {
 };
 
 
-
 // 🔹 Delete Product
 exports.deleteProduct = async (id) => {
-
   const product = await Product.findById(id);
+
   if (!product) {
     throw new Error("Product not found");
   }
 
-  // 🔥 delete images
+  // ❌ delete all images from Cloudinary
   if (product.images && product.images.length > 0) {
-    product.images.forEach(img => {
-      if (fs.existsSync(img)) fs.unlinkSync(img);
-    });
+    for (let img of product.images) {
+      if (img.public_id) {
+        await cloudinary.uploader.destroy(img.public_id);
+      }
+    }
   }
 
-  await Product.findByIdAndDelete(id);
+  await product.deleteOne();
 
   return true;
 };

@@ -6,10 +6,13 @@ exports.getHome = async (req, res) => {
 
     const data = await homeService.getHomeData(req.user._id);
 
+    // console.log("Home data:", data);
+    // console.log("User:", req.user);
+
     res.json({
       message: "Home data fetched successfully",
       user: {
-        name: req.user.name || "User"
+        name: req.user.proprietorName || "Ramesh"
       },
       ...data
     });

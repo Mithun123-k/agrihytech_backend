@@ -1,6 +1,4 @@
-// banner.controller.js
 const bannerService = require("./banner.service");
-
 
 // 🔹 Create
 exports.createBanner = async (req, res) => {
@@ -12,9 +10,8 @@ exports.createBanner = async (req, res) => {
 
     res.status(201).json({
       message: "Banner created successfully",
-      banner
+      banner,
     });
-
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -28,9 +25,8 @@ exports.getAllBanners = async (req, res) => {
 
     res.json({
       message: "Banners fetched successfully",
-      banners
+      banners,
     });
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -47,9 +43,8 @@ exports.updateBanner = async (req, res) => {
 
     res.json({
       message: "Banner updated successfully",
-      banner
+      banner,
     });
-
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -62,9 +57,8 @@ exports.deleteBanner = async (req, res) => {
     await bannerService.deleteBanner(req.params.id);
 
     res.json({
-      message: "Banner deleted successfully"
+      message: "Banner deleted successfully",
     });
-
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

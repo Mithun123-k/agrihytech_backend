@@ -1,47 +1,40 @@
 const Category = require("./category.model");
 const Product = require("../product/product.model");
-const fs = require("fs");
+const cloudinary = require("../../config/cloudinary");
 
-
+// 🔹 Create
 exports.createCategory = async (data, file, userId) => {
   const { name } = data;
 
-  if (!name) {
-    throw new Error("Category name is required");
-  }
+  if (!name) throw new Error("Category name is required");
+  if (!file) throw new Error("Image is required");
 
-  if (!file) {
-    throw new Error("Image is required");
-  }
+  const exists = await Category.findOne({ name });
+  if (exists) throw new Error("Category already exists");
 
-  const existing = await Category.findOne({ name });
-  if (existing) {
-    throw new Error("Category already exists");
-  }
-
-  const category = await Category.create({
+  return await Category.create({
     name,
-    image: file.path, // multer path
-    createdBy: userId
+    image: file.path,
+    public_id: file.filename,
+    createdBy: userId,
   });
-
-  return category;
 };
 
+
+// 🔹 Get By ID
 exports.getCategoryById = async (id) => {
   const category = await Category.findById(id);
-  if (!category) {
-    throw new Error("Category not found");
-  }
+  if (!category) throw new Error("Category not found");
   return category;
 };
 
-// 🔹 Get All Categories
+
+// 🔹 Get All (Pagination + Search)
 exports.getAllCategories = async (query) => {
   const { page = 1, limit = 10, search = "" } = query;
 
   const filter = {
-    name: { $regex: search, $options: "i" }
+    name: { $regex: search, $options: "i" },
   };
 
   const categories = await Category.find(filter)
@@ -55,61 +48,59 @@ exports.getAllCategories = async (query) => {
     categories,
     total,
     page: Number(page),
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / limit),
   };
 };
 
 
-// 🔹 Update Category
+// 🔹 Update
 exports.updateCategory = async (id, data, file) => {
   const category = await Category.findById(id);
+  if (!category) throw new Error("Category not found");
 
-  if (!category) {
-    throw new Error("Category not found");
-  }
-
+  // 🔥 name update with duplicate check
   if (data.name) {
+    const exists = await Category.findOne({
+      name: data.name,
+      _id: { $ne: id },
+    });
+
+    if (exists) throw new Error("Category already exists");
+
     category.name = data.name;
   }
 
-  // 🔥 replace image if uploaded
+  // 🔥 replace image
   if (file) {
-    if (category.image && fs.existsSync(category.image)) {
-      fs.unlinkSync(category.image);
+    if (category.public_id) {
+      await cloudinary.uploader.destroy(category.public_id);
     }
 
     category.image = file.path;
+    category.public_id = file.filename;
   }
 
   await category.save();
-
   return category;
 };
 
 
-// 🔹 Delete Category
+// 🔹 Delete
 exports.deleteCategory = async (id) => {
   const category = await Category.findById(id);
+  if (!category) throw new Error("Category not found");
 
-  if (!category) {
-    throw new Error("Category not found");
-  }
-
-  // 🔥 Prevent delete if used in products
-  const productExists = await Product.findOne({
-    category: id
-  });
-
+  // 🔥 prevent delete if used in products
+  const productExists = await Product.findOne({ category: id });
   if (productExists) {
     throw new Error("Category is used in products");
   }
 
-  // delete image
-  if (category.image && fs.existsSync(category.image)) {
-    fs.unlinkSync(category.image);
+  // ❌ delete from cloudinary
+  if (category.public_id) {
+    await cloudinary.uploader.destroy(category.public_id);
   }
 
-  await Category.findByIdAndDelete(id);
-
+  await category.deleteOne();
   return true;
 };

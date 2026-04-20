@@ -6,7 +6,10 @@ const bannerSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-
+  public_id: {   // ✅ IMPORTANT for Cloudinary delete/update
+    type: String,
+    required: true,
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"

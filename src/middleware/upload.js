@@ -1,36 +1,29 @@
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../config/cloudinary");
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    let uploadPath = "uploads/";
+const getFolder = (req) => {
+  if (req.baseUrl.includes("banners")) return "banners";
+  if (req.baseUrl.includes("categories")) return "categories";
+  if (req.baseUrl.includes("products")) return "products";
+  if (req.baseUrl.includes("brands")) return "brands";
+  return "others";
+};
 
-    // 🔥 dynamic folder based on route
-    if (req.baseUrl.includes("categories")) {
-      uploadPath += "categories";
-    } else if (req.baseUrl.includes("products")) {
-      uploadPath += "products";
-    } else if (req.baseUrl.includes("brands")) {
-      uploadPath += "brands";
-    } else if (req.baseUrl.includes("banners")) {
-      uploadPath += "banners";
-    }
-    else {
-      uploadPath += "others";
-    }
-
-    // ✅ create folder if not exists
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    cb(null, uploadPath);
-  },
-
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: (req, file) => ({
+    folder: `your_app/${getFolder(req)}`,
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    public_id: `${Date.now()}-${file.originalname}`,
+    transformation: [
+      { width: 1200, height: 600, crop: "limit" },
+      { quality: "auto" },
+    ],
+  }),
 });
 
-module.exports = multer({ storage });
+module.exports = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});

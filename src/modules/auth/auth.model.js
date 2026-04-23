@@ -11,6 +11,15 @@ const userSchema = new mongoose.Schema({
   proprietorName: String,
   password: String,
 
+   profileimage: {
+    type: String,
+    required: true
+  },
+  public_id: {
+    type: String,
+    required: true,
+  },
+
   location: {
     state: String,
     district: String,

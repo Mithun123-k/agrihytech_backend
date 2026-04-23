@@ -31,3 +31,34 @@ exports.registerB2B = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+
+
+exports.getMe = async (req, res) => {
+  try {
+    const user = await authService.getMe(req.user.id);
+
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /me/update
+exports.updateProfile = async (req, res) => {
+  try {
+    const user = await authService.updateProfile(
+      req.user.id,
+      req.body,
+      req.file
+    );
+
+    res.json({
+      success: true,
+      message: "Profile updated",
+      user
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};

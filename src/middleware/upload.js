@@ -7,6 +7,7 @@ const getFolder = (req) => {
   if (req.baseUrl.includes("categories")) return "categories";
   if (req.baseUrl.includes("products")) return "products";
   if (req.baseUrl.includes("brands")) return "brands";
+  if (req.baseUrl.includes("auth")) return "users";
   return "others";
 };
 

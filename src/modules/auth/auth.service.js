@@ -1,6 +1,9 @@
 const User = require("./auth.model");
 const OTP = require("./otp.model");
 const bcrypt = require("bcrypt");
+const cloudinary = require("../../config/cloudinary");
+const streamifier = require("streamifier");
+const fs = require("fs");
 
 // 🔢 Generate 4 digit OTP
 const generateOTP = () => {
@@ -105,4 +108,78 @@ exports.registerB2B = async (data) => {
     token,
     user
   };
+};
+
+// auth.service.js
+
+// ✅ GET ME
+exports.getMe = async (userId) => {
+  const user = await User.findById(userId).select("-password");
+  if (!user) throw new Error("User not found");
+  return user;
+};
+
+
+
+// ✅ UPDATE PROFILE (without streamifier)
+exports.updateProfile = async (userId, data, file) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  // ❌ restricted
+  delete data.mobile;
+  delete data.role;
+
+  // parse location
+  if (typeof data.location === "string") {
+    data.location = JSON.parse(data.location);
+  }
+
+  // ✅ common
+  if (data.name) user.name = data.name;
+  if (data.email) user.email = data.email;
+
+  // ✅ B2B
+  if (user.role === "B2B") {
+    if (data.firmName) user.firmName = data.firmName;
+    if (data.proprietorName) user.proprietorName = data.proprietorName;
+
+    if (data.location) {
+      user.location = {
+        ...user.location,
+        ...data.location,
+        type: "Point",
+        coordinates: [
+          data.location.lng || user.location.coordinates[0],
+          data.location.lat || user.location.coordinates[1]
+        ]
+      };
+    }
+
+    if (data.password) {
+      user.password = await bcrypt.hash(data.password, 10);
+    }
+  }
+
+  // 🔥 IMAGE UPLOAD (NO STREAMIFIER)
+  if (file && file.path) {
+    // delete old image
+    if (user?.public_id) {
+      await cloudinary.uploader.destroy(user?.public_id);
+    }
+
+
+    // ✅ save new image
+    user.profileimage = file.path;
+    user.public_id = file.filename;
+
+    
+
+  }
+
+  await user.save();
+
+  user.password = undefined;
+
+  return user;
 };

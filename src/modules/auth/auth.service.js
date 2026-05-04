@@ -31,11 +31,11 @@ exports.sendOtp = async (mobile, role = "B2C") => {
   console.log("OTP:", otp);
 
   // 📤 SEND SMS USING TWILIO
-  // await client.messages.create({
-  //   body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
-  //   from: process.env.TWILIO_PHONE_NUMBER,
-  //   to: mobile, // must be +91XXXXXXXXXX
-  // });
+  await client.messages.create({
+    body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+    from: process.env.TWILIO_PHONE_NUMBER,
+    to: mobile, // must be +91XXXXXXXXXX
+  });
 
 
   return { message: "OTP sent successfully", otp };

@@ -54,9 +54,9 @@ exports.isB2B = (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (req.user.role !== "B2B") {
+    if (req.user.role !== "B2B" && req.user.role !== "ADMIN") {
       return res.status(403).json({
-        message: "Access denied. Only B2B users can perform this action"
+        message: "Access denied. Only B2B or ADMIN users can perform this action"
       });
     }
 

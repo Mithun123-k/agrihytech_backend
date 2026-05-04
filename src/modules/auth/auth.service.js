@@ -34,7 +34,7 @@ exports.sendOtp = async (mobile, role = "B2C") => {
   await client.messages.create({
     body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
     from: process.env.TWILIO_PHONE_NUMBER,
-    to: mobile, // must be +91XXXXXXXXXX
+    to: `+91${mobile}`, // must be +91XXXXXXXXXX
   });
 
 

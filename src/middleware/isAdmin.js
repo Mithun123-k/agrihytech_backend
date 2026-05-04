@@ -47,3 +47,21 @@ exports.isAdmin = (req, res, next) => {
   }
 };
 
+
+exports.isB2B = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (req.user.role !== "B2B") {
+      return res.status(403).json({
+        message: "Access denied. Only B2B users can perform this action"
+      });
+    }
+
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

@@ -31,4 +31,6 @@ router.delete(
   categoryController.deleteCategory
 );
 
+router.get("/:id/brands", categoryController.getBrandsByCategory);
+
 module.exports = router;

@@ -2,6 +2,7 @@ const User = require("./auth.model");
 const OTP = require("./otp.model");
 const bcrypt = require("bcrypt");
 const cloudinary = require("../../config/cloudinary");
+const client = require("../../config/twilio");
 const streamifier = require("streamifier");
 const fs = require("fs");
 
@@ -28,6 +29,14 @@ exports.sendOtp = async (mobile, role = "B2C") => {
   });
 
   console.log("OTP:", otp);
+
+  // 📤 SEND SMS USING TWILIO
+  // await client.messages.create({
+  //   body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+  //   from: process.env.TWILIO_PHONE_NUMBER,
+  //   to: mobile, // must be +91XXXXXXXXXX
+  // });
+
 
   return { message: "OTP sent successfully", otp };
 };

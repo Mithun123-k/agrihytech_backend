@@ -2,6 +2,7 @@ const Brand = require("./brand.model");
 const Category = require("../category/category.model");
 const mongoose = require("mongoose");
 const cloudinary = require("../../config/cloudinary");
+const Product = require("../product/product.model");
 
 // 🔹 Create Brand
 exports.createBrand = async (data, file, userId) => {
@@ -70,28 +71,75 @@ exports.getBrandsByCategory = async (categoryId, query) => {
   };
 };
 
+// 🔹 Get All Brands with product usage count
 
-// 🔹 Get All Brands
 exports.getAllBrands = async (query) => {
   const { page = 1, limit = 10, search = "" } = query;
+
+  const skip = (page - 1) * limit;
 
   const filter = {
     name: { $regex: search, $options: "i" },
   };
 
-  const brands = await Brand.find(filter)
-    .populate("category", "name")
-    .skip((page - 1) * limit)
-    .limit(parseInt(limit))
-    .sort({ createdAt: -1 });
+  // Brands with product count
+  const brands = await Brand.aggregate([
+    { $match: filter },
 
-  const total = await Brand.countDocuments(filter);
+    {
+      $lookup: {
+        from: "products", // collection name
+        localField: "_id",
+        foreignField: "brand",
+        as: "products",
+      },
+    },
+
+    {
+      $lookup: {
+        from: "categories",
+        localField: "category",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+
+    {
+      $unwind: {
+        path: "$category",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+
+    {
+      $addFields: {
+        productCount: { $size: "$products" },
+      },
+    },
+
+    {
+      $project: {
+        products: 0,
+      },
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: parseInt(limit) },
+  ]);
+
+  // Total brands
+  const totalBrands = await Brand.countDocuments(filter);
+
+  // Total products
+  const totalProducts = await Product.countDocuments();
 
   return {
     brands,
-    total,
+    totalBrands,
+    totalProducts,
     page: Number(page),
-    totalPages: Math.ceil(total / limit),
+    totalPages: Math.ceil(totalBrands / limit),
   };
 };
 
@@ -166,4 +214,62 @@ exports.deleteBrand = async (id) => {
   await brand.deleteOne();
 
   return true;
+};
+
+
+// 🔥 Get Products by Brand
+exports.getProductsByBrand = async (brandId, query) => {
+  const { page = 1, limit = 10, search = "" } = query;
+
+  // ✅ check brand exists
+  const brand = await Brand.findById(brandId);
+  if (!brand) throw new Error("Brand not found");
+
+  // 🔥 filter
+  const filter = {
+    brand: brandId,
+    name: { $regex: search, $options: "i" }
+  };
+
+  // 🔥 fetch products
+  const products = await Product.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit));
+
+  const total = await Product.countDocuments(filter);
+
+  return {
+    brand,
+    products,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+
+// 🔥 Get My Brands
+exports.getMyBrands = async (userId, query) => {
+  const { page = 1, limit = 10, search = "" } = query;
+
+  const filter = {
+    createdBy: userId,
+    name: { $regex: search, $options: "i" }
+  };
+
+  const brands = await Brand.find(filter)
+    .populate("category", "name")
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit))
+    .sort({ createdAt: -1 });
+
+  const total = await Brand.countDocuments(filter);
+
+  return {
+    brands,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit),
+  };
 };

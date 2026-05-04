@@ -64,7 +64,7 @@ exports.cancelSubscription = async (userId) => {
 };
 
 exports.activateTrial = async (userId) => {
-  const User = require("../user/user.model");
+  const User = require("../auth/auth.model");
   const Subscription = require("./subscription.model");
 
   const user = await User.findById(userId);

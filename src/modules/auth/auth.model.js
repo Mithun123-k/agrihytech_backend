@@ -13,11 +13,11 @@ const userSchema = new mongoose.Schema({
 
    profileimage: {
     type: String,
-    required: true
+    // required: true
   },
   public_id: {
     type: String,
-    required: true,
+    // required: true,
   },
 
   location: {

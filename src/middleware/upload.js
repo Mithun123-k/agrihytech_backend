@@ -1,6 +1,7 @@
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinary");
+const path = require("path");
 
 const getFolder = (req) => {
   if (req.baseUrl.includes("banners")) return "banners";
@@ -16,7 +17,8 @@ const storage = new CloudinaryStorage({
   params: (req, file) => ({
     folder: `your_app/${getFolder(req)}`,
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
-    public_id: `${Date.now()}-${file.originalname}`,
+    // public_id: `${Date.now()}-${file.originalname}`,
+    public_id: `${Date.now()}-${path.parse(file.originalname).name}`,
     transformation: [
       { width: 1200, height: 600, crop: "limit" },
       { quality: "auto" },

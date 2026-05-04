@@ -1,6 +1,8 @@
 const Category = require("./category.model");
 const Product = require("../product/product.model");
 const cloudinary = require("../../config/cloudinary");
+const mongoose = require("mongoose");
+const Brand = require("../brand/brand.model");
 
 // 🔹 Create
 exports.createCategory = async (data, file, userId) => {
@@ -23,9 +25,43 @@ exports.createCategory = async (data, file, userId) => {
 
 // 🔹 Get By ID
 exports.getCategoryById = async (id) => {
-  const category = await Category.findById(id);
-  if (!category) throw new Error("Category not found");
-  return category;
+  const result = await Category.aggregate([
+    {
+      $match: { _id: new mongoose.Types.ObjectId(id) }
+    },
+
+    {
+      $lookup: {
+        from: "brands",
+        localField: "_id",
+        foreignField: "category",
+        as: "brands"
+      }
+    },
+
+    {
+      $addFields: {
+        brandIds: {
+          $map: {
+            input: "$brands",
+            as: "b",
+            in: "$$b._id"
+          }
+        },
+        totalBrands: { $size: "$brands" }
+      }
+    },
+
+    {
+      $project: {
+        brands: 0
+      }
+    }
+  ]);
+
+  if (!result.length) throw new Error("Category not found");
+
+  return result[0];
 };
 
 
@@ -33,16 +69,47 @@ exports.getCategoryById = async (id) => {
 exports.getAllCategories = async (query) => {
   const { page = 1, limit = 10, search = "" } = query;
 
-  const filter = {
+  const matchStage = {
     name: { $regex: search, $options: "i" },
   };
 
-  const categories = await Category.find(filter)
-    .skip((page - 1) * limit)
-    .limit(parseInt(limit))
-    .sort({ createdAt: -1 });
+  const categories = await Category.aggregate([
+    { $match: matchStage },
 
-  const total = await Category.countDocuments(filter);
+    {
+      $lookup: {
+        from: "brands", // 🔥 collection name
+        localField: "_id",
+        foreignField: "category",
+        as: "brands"
+      }
+    },
+
+    {
+      $addFields: {
+        brandIds: {
+          $map: {
+            input: "$brands",
+            as: "b",
+            in: "$$b._id"
+          }
+        },
+        totalBrands: { $size: "$brands" }
+      }
+    },
+
+    {
+      $project: {
+        brands: 0 // full data hide (optional)
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: parseInt(limit) }
+  ]);
+
+  const total = await Category.countDocuments(matchStage);
 
   return {
     categories,
@@ -51,7 +118,6 @@ exports.getAllCategories = async (query) => {
     totalPages: Math.ceil(total / limit),
   };
 };
-
 
 // 🔹 Update
 exports.updateCategory = async (id, data, file) => {
@@ -103,4 +169,56 @@ exports.deleteCategory = async (id) => {
 
   await category.deleteOne();
   return true;
+};
+
+// 🔥 Get Brands by Category
+exports.getBrandsByCategory = async (categoryId, query) => {
+  const { page = 1, limit = 10 } = query;
+
+  const brands = await Brand.aggregate([
+    {
+      $match: {
+        category: new mongoose.Types.ObjectId(categoryId)
+      }
+    },
+
+    // 🔥 JOIN with products
+    {
+      $lookup: {
+        from: "products",        // 🔥 collection name
+        localField: "_id",
+        foreignField: "brand",
+        as: "products"
+      }
+    },
+
+    // 🔥 COUNT products
+    {
+      $addFields: {
+        productCount: { $size: "$products" }
+      }
+    },
+
+    // 🔥 REMOVE products array (optional)
+    {
+      $project: {
+        products: 0
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: parseInt(limit) }
+  ]);
+
+  const total = await Brand.countDocuments({
+    category: categoryId
+  });
+
+  return {
+    brands,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit),
+  };
 };

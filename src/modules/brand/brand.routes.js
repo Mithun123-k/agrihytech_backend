@@ -17,6 +17,7 @@ router.post(
 
 // 🔹 Get All Brands
 router.get("/", verifyToken, brandController.getAllBrands);
+router.get("/my-brands", verifyToken, brandController.getMyBrands);
 router.get("/:id", brandController.getBrandsByCategory);
 
 
@@ -37,5 +38,9 @@ router.delete(
   isAdmin,
   brandController.deleteBrand
 );
+
+router.get("/:id/products", brandController.getProductsByBrand);
+
+
 
 module.exports = router;

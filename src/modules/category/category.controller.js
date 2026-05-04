@@ -72,3 +72,22 @@ exports.deleteCategory = async (req, res) => {
     });
   }
 };
+
+exports.getBrandsByCategory = async (req, res) => {
+  try {
+    const data = await categoryService.getBrandsByCategory(
+      req.params.id,
+      req.query
+    );
+
+    res.json({
+      message: "Brands fetched successfully",
+      ...data
+    });
+
+  } catch (err) {
+    res.status(404).json({
+      error: err.message
+    });
+  }
+};

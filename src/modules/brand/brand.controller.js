@@ -89,3 +89,44 @@ exports.deleteBrand = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+
+
+exports.getProductsByBrand = async (req, res) => {
+  try {
+    const data = await brandService.getProductsByBrand(
+      req.params.id,
+      req.query
+    );
+
+    res.json({
+      message: "Products fetched successfully",
+      ...data
+    });
+
+  } catch (err) {
+    res.status(404).json({
+      error: err.message
+    });
+  }
+};
+
+// 🔥 Get Logged-in User Brands
+exports.getMyBrands = async (req, res) => {
+  try {
+    const result = await brandService.getMyBrands(
+      req.user._id,
+      req.query
+    );
+
+    res.json({
+      message: "My brands fetched successfully",
+      ...result
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: err.message
+    });
+  }
+};

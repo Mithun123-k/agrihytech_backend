@@ -45,9 +45,32 @@ exports.getHomeData = async (userId) => {
   ]);
 
   // 🔹 top brands (max 4)
-  const brands = await Brand.find()
-    .sort({ createdAt: -1 })
-    .limit(4);
+  const brands = await Brand.aggregate([
+    { $sort: { createdAt: -1 } },
+    { $limit: 4 },
+
+    {
+      $lookup: {
+        from: "products",
+        localField: "_id",
+        foreignField: "brand",
+        as: "products"
+      }
+    },
+
+    {
+      $addFields: {
+        totalProducts: { $size: "$products" }
+      }
+    },
+
+    {
+      $project: {
+        products: 0
+      }
+    }
+  ]);
+
 
   return {
     banners,

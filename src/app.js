@@ -17,6 +17,7 @@ const brandRoutes = require('./modules/brand/brand.routes')
 const bannerRoutes = require('./modules/banner/banner.routes')
 const homeRoutes = require('./modules/home/home.routes')
 const subscriptionRoutes = require('./modules/subscription/subscription.routes')
+const searchRoute = require("./modules/search/search.routes")
 
 // ✅ API Routes
 app.use("/api/auth", authRoutes);
@@ -26,6 +27,7 @@ app.use("/api/brands", brandRoutes)
 app.use("/api/banners", bannerRoutes)
 app.use("/api/home", homeRoutes)
 app.use("/api/subscription", subscriptionRoutes)
+app.use("/api", searchRoute)
 
 
 

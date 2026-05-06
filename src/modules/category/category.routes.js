@@ -14,6 +14,20 @@ router.post(
 );
 
 router.get("/", categoryController.getCategories);
+router.get(
+  "/my-categories",
+  verifyToken,
+  categoryController.getMyCategories
+);
+
+router.get("/:id/brands", categoryController.getBrandsByCategory);
+router.get(
+  "/:id/my-brands",
+  verifyToken,
+  categoryController.getMyBrandsByCategory
+);
+
+
 router.get("/:id", categoryController.getCategoryById);
 
 router.put(
@@ -31,6 +45,5 @@ router.delete(
   categoryController.deleteCategory
 );
 
-router.get("/:id/brands", categoryController.getBrandsByCategory);
 
 module.exports = router;

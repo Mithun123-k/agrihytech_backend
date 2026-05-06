@@ -130,3 +130,23 @@ exports.getMyBrands = async (req, res) => {
     });
   }
 };
+
+exports.getMyProductsByBrand = async (req, res) => {
+  try {
+    const data = await brandService.getMyProductsByBrand(
+      req.params.id,
+      req.user._id,
+      req.query
+    );
+
+    res.status(200).json({
+      success: true,
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

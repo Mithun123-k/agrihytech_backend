@@ -91,3 +91,43 @@ exports.getBrandsByCategory = async (req, res) => {
     });
   }
 };
+
+exports.getMyCategories = async (req, res) => {
+  try {
+    const data = await categoryService.getMyCategories(
+      req.query,
+      req.user._id
+    );
+
+    res.status(200).json({
+      success: true,
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+exports.getMyBrandsByCategory = async (req, res) => {
+  try {
+    const data = await categoryService.getMyBrandsByCategory(
+      req.params.id,
+      req.query,
+      req.user._id
+    );
+
+    res.status(200).json({
+      success: true,
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

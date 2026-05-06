@@ -273,3 +273,35 @@ exports.getMyBrands = async (userId, query) => {
     totalPages: Math.ceil(total / limit),
   };
 };
+
+// 🔥 Get My Products By Brand
+exports.getMyProductsByBrand = async (brandId, userId, query) => {
+  const { page = 1, limit = 10, search = "" } = query;
+
+  const brand = await Brand.findById(brandId);
+
+  if (!brand) {
+    throw new Error("Brand not found");
+  }
+
+  const filter = {
+    brand: brandId,
+    createdBy: userId,
+    name: { $regex: search, $options: "i" }
+  };
+
+  const products = await Product.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit));
+
+  const total = await Product.countDocuments(filter);
+
+  return {
+    brand,
+    products,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit)
+  };
+};

@@ -149,7 +149,7 @@ exports.updateProfile = async (userId, data, file) => {
   if (data.email) user.email = data.email;
 
   // ✅ B2B
-  if (user.role === "B2B") {
+  if (user.role === "ADMIN" || user.role === "B2B") {
     if (data.firmName) user.firmName = data.firmName;
     if (data.proprietorName) user.proprietorName = data.proprietorName;
 
@@ -169,6 +169,8 @@ exports.updateProfile = async (userId, data, file) => {
       user.password = await bcrypt.hash(data.password, 10);
     }
   }
+
+  
 
   // 🔥 IMAGE UPLOAD (NO STREAMIFIER)
   if (file && file.path) {

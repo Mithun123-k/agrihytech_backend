@@ -40,6 +40,11 @@ router.delete(
 );
 
 router.get("/:id/products", brandController.getProductsByBrand);
+router.get(
+  "/:id/my-products",
+  verifyToken,
+  brandController.getMyProductsByBrand
+);
 
 
 

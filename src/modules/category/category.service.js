@@ -222,3 +222,167 @@ exports.getBrandsByCategory = async (categoryId, query) => {
     totalPages: Math.ceil(total / limit),
   };
 };
+
+
+// 🔥 Get My Categories (only logged-in user's brand count)
+exports.getMyCategories = async (query, userId) => {
+  const { page = 1, limit = 10, search = "" } = query;
+
+  const matchStage = {
+    name: { $regex: search, $options: "i" }
+  };
+
+  const categories = await Category.aggregate([
+    { $match: matchStage },
+
+    {
+      $lookup: {
+        from: "brands",
+        let: { categoryId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$category", "$$categoryId"]
+              }
+            }
+          },
+
+          {
+            $lookup: {
+              from: "products",
+              let: { brandId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$brand", "$$brandId"] },
+                        {
+                          $eq: [
+                            "$createdBy",
+                            new mongoose.Types.ObjectId(userId)
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              as: "myProducts"
+            }
+          },
+
+          {
+            $match: {
+              "myProducts.0": { $exists: true }
+            }
+          }
+        ],
+        as: "myBrands"
+      }
+    },
+
+    {
+      $addFields: {
+        brandIds: {
+          $map: {
+            input: "$myBrands",
+            as: "b",
+            in: "$$b._id"
+          }
+        },
+        totalBrands: { $size: "$myBrands" }
+      }
+    },
+
+    {
+      $project: {
+        myBrands: 0
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: parseInt(limit) }
+  ]);
+
+  const total = await Category.countDocuments(matchStage);
+
+  return {
+    categories,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit)
+  };
+};
+
+// 🔥 Get My Brands By Category
+exports.getMyBrandsByCategory = async (categoryId, query, userId) => {
+  const { page = 1, limit = 10 } = query;
+
+  const brands = await Brand.aggregate([
+    {
+      $match: {
+        category: new mongoose.Types.ObjectId(categoryId)
+      }
+    },
+
+    {
+      $lookup: {
+        from: "products",
+        let: { brandId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$brand", "$$brandId"] },
+                  {
+                    $eq: [
+                      "$createdBy",
+                      new mongoose.Types.ObjectId(userId)
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        as: "myProducts"
+      }
+    },
+
+    // सिर्फ वही brands जहाँ user ने product add किया
+    {
+      $match: {
+        "myProducts.0": { $exists: true }
+      }
+    },
+
+    {
+      $addFields: {
+        productCount: { $size: "$myProducts" }
+      }
+    },
+
+    {
+      $project: {
+        myProducts: 0
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: parseInt(limit) }
+  ]);
+
+  const total = brands.length;
+
+  return {
+    brands,
+    total,
+    page: Number(page),
+    totalPages: Math.ceil(total / limit)
+  };
+};

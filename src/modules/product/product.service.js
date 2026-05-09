@@ -4,11 +4,67 @@ const Category = require("../category/category.model");
 const cloudinary = require("../../config/cloudinary");
 
 // 🔹 Create Product
-exports.createProduct = async (data, files, userId) => {
+// exports.createProduct = async (data, files, userId) => {
+//   // 🔥 validate brand
+//   const brandExists = await Brand.findById(data.brand);
+//   if (!brandExists) {
+//     throw new Error("Invalid Brand ID");
+//   }
+
+//   // 🔥 validate category
+//   if (data.category) {
+//     const catExists = await Category.findById(data.category);
+//     if (!catExists) {
+//       throw new Error("Invalid Category ID");
+//     }
+//   }
+
+//   // 🔥 handle images
+//   let images = [];
+
+//   if (files && files.length > 0) {
+//     images = files.map(file => ({
+//       url: file.path,          // ✅ Cloudinary URL
+//       public_id: file.filename // ✅ needed for delete
+//     }));
+//   }
+
+//   const product = await Product.create({
+//     ...data,
+//     images,
+//     createdBy: userId
+//   });
+
+//   return product;
+// };
+
+// 🔹 Create Product
+exports.createProduct = async (data, files, userId, userRole) => {
   // 🔥 validate brand
-  const brandExists = await Brand.findById(data.brand);
-  if (!brandExists) {
-    throw new Error("Invalid Brand ID");
+  let brandData;
+
+  if (userRole === "ADMIN") {
+    if (!Array.isArray(data.brand) || data.brand.length === 0) {
+      throw new Error("Admin must provide brand array");
+    }
+
+    const brands = await Brand.find({
+      _id: { $in: data.brand }
+    });
+
+    if (brands.length !== data.brand.length) {
+      throw new Error("One or more Brand IDs are invalid");
+    }
+
+    brandData = data.brand;
+  } else {
+    const brandExists = await Brand.findById(data.brand);
+
+    if (!brandExists) {
+      throw new Error("Invalid Brand ID");
+    }
+
+    brandData = [data.brand];
   }
 
   // 🔥 validate category
@@ -24,13 +80,14 @@ exports.createProduct = async (data, files, userId) => {
 
   if (files && files.length > 0) {
     images = files.map(file => ({
-      url: file.path,          // ✅ Cloudinary URL
-      public_id: file.filename // ✅ needed for delete
+      url: file.path,
+      public_id: file.filename
     }));
   }
 
   const product = await Product.create({
     ...data,
+    brand: brandData,
     images,
     createdBy: userId
   });
@@ -152,4 +209,104 @@ exports.deleteProduct = async (id) => {
   return true;
 };
 
+
+// 🔹 Get Products By Category (ADMIN only)
+exports.getProductsByCategory = async (categoryId, query) => {
+  const { page = 1, limit = 10 } = query;
+
+  // validate category
+  const categoryExists = await Category.findById(categoryId);
+
+  if (!categoryExists) {
+    throw new Error("Invalid Category ID");
+  }
+
+  const products = await Product.aggregate([
+    {
+      $match: {
+        category: categoryExists._id
+      }
+    },
+
+    {
+      $lookup: {
+        from: "users",
+        localField: "createdBy",
+        foreignField: "_id",
+        as: "creator"
+      }
+    },
+
+    { $unwind: "$creator" },
+
+    {
+      $match: {
+        "creator.role": "ADMIN"
+      }
+    },
+
+    { $sort: { createdAt: -1 } },
+
+    { $skip: (page - 1) * parseInt(limit) },
+
+    { $limit: parseInt(limit) },
+
+    {
+      $lookup: {
+        from: "brands",
+        localField: "brand",
+        foreignField: "_id",
+        as: "brand"
+      }
+    },
+
+    {
+      $lookup: {
+        from: "categories",
+        localField: "category",
+        foreignField: "_id",
+        as: "category"
+      }
+    },
+
+    {
+      $unwind: {
+        path: "$category",
+        preserveNullAndEmptyArrays: true
+      }
+    }
+  ]);
+
+  const total = await Product.aggregate([
+    {
+      $match: {
+        category: categoryExists._id
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "createdBy",
+        foreignField: "_id",
+        as: "creator"
+      }
+    },
+    { $unwind: "$creator" },
+    {
+      $match: {
+        "creator.role": "ADMIN"
+      }
+    },
+    {
+      $count: "total"
+    }
+  ]);
+
+  return {
+    products,
+    total: total[0]?.total || 0,
+    page: Number(page),
+    totalPages: Math.ceil((total[0]?.total || 0) / limit)
+  };
+};
 

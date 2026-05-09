@@ -22,7 +22,10 @@ exports.createCategory = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await categoryService.getAllCategories(req.query);
+    const categories = await categoryService.getAllCategories(
+      req.query,
+      req.user 
+    );
     res.json(categories);
   } catch (err) {
     res.status(500).json({
@@ -123,6 +126,23 @@ exports.getMyBrandsByCategory = async (req, res) => {
     res.status(200).json({
       success: true,
       ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// User
+exports.getUserCategories = async (req, res) => {
+  try {
+    const result = await categoryService.getUserCategories(req.query);
+
+    res.status(200).json({
+      success: true,
+      ...result
     });
   } catch (error) {
     res.status(400).json({

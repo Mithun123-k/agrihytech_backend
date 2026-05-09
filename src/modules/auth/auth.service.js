@@ -11,34 +11,71 @@ const generateOTP = () => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
+
+
+  // 📤 SEND SMS USING TWILIO
+  // await client.messages.create({
+  //   body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+  //   from: process.env.TWILIO_PHONE_NUMBER,
+  //   to: `+91${mobile}`, // must be +91XXXXXXXXXX
+  // });
+
+
+// 📲 Send OTP
 // 📲 Send OTP
 exports.sendOtp = async (mobile, role = "B2C") => {
   const user = await User.findOne({ mobile });
 
-  // ❌ B2B user must register first
-  if (role === "B2B" && !user) {
-    throw new Error("Please register first as B2B user");
+  // New user allowed only for B2C
+  if (!user && role !== "B2C") {
+    throw new Error(`${role} user must register first`);
+  }
+
+  // If logging in as B2B, allow both B2B and ADMIN
+  if (
+    user &&
+    role === "B2B" &&
+    user.role !== "B2B" &&
+    user.role !== "ADMIN"
+  ) {
+    throw new Error(
+      `This mobile number is registered as ${user.role}. Please login with correct role.`
+    );
+  }
+
+  // Normal mismatch check for other roles
+  if (
+    user &&
+    role !== "B2B" &&
+    user.role !== role
+  ) {
+    throw new Error(
+      `This mobile number is registered as ${user.role}. Please login with correct role.`
+    );
   }
 
   const otp = generateOTP();
 
+  // 📤 SEND SMS USING TWILIO
+  // await client.messages.create({
+  //   body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
+  //   from: process.env.TWILIO_PHONE_NUMBER,
+  //   to: `+91${mobile}`, // must be +91XXXXXXXXXX
+  // });
+
+
   await OTP.create({
     mobile,
     otp,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
   });
 
   console.log("OTP:", otp);
 
-  // 📤 SEND SMS USING TWILIO
-  await client.messages.create({
-    body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
-    from: process.env.TWILIO_PHONE_NUMBER,
-    to: `+91${mobile}`, // must be +91XXXXXXXXXX
-  });
-
-
-  return { message: "OTP sent successfully", otp };
+  return {
+    message: "OTP sent successfully",
+    otp,
+  };
 };
 
 // ✅ Verify OTP
@@ -50,25 +87,42 @@ exports.verifyOtp = async (mobile, otp, role) => {
 
   let user = await User.findOne({ mobile });
 
-  // ✅ B2C → auto create
-  if (!user && role === "B2C") {
-    user = await User.create({ mobile, role: "B2C" });
-  }
-  // ✅ ADMIN → auto create
-  if (!user && role === "ADMIN") {
-    user = await User.create({ mobile, role: "ADMIN" });
+  // New user allowed only for B2C
+  if (!user) {
+    if (role === "B2C") {
+      user = await User.create({
+        mobile,
+        role: "B2C",
+        isVerified: true,
+      });
+    } else {
+      throw new Error(`${role} user must register first`);
+    }
   }
 
-  // ❌ B2B must register first
-  if (!user && role === "B2B") {
-    throw new Error("Please register first");
+  // Special case: B2B login allows both B2B and ADMIN
+  if (
+    role === "B2B" &&
+    user.role !== "B2B" &&
+    user.role !== "ADMIN"
+  ) {
+    throw new Error(`This number belongs to ${user.role}`);
+  }
+
+  // Normal role mismatch check
+  if (
+    role !== "B2B" &&
+    user.role !== role
+  ) {
+    throw new Error(`This number belongs to ${user.role}`);
   }
 
   user.isVerified = true;
   await user.save();
 
-  // 🔥 USE MODEL METHOD
   const token = user.generateAuthToken();
+
+  await OTP.deleteOne({ _id: record._id });
 
   return { token, user };
 };
@@ -147,11 +201,11 @@ exports.updateProfile = async (userId, data, file) => {
   // ✅ common
   if (data.name) user.name = data.name;
   if (data.email) user.email = data.email;
+  if (data.proprietorName) user.proprietorName = data.proprietorName;
 
   // ✅ B2B
   if (user.role === "ADMIN" || user.role === "B2B") {
     if (data.firmName) user.firmName = data.firmName;
-    if (data.proprietorName) user.proprietorName = data.proprietorName;
 
     if (data.location) {
       user.location = {
@@ -170,7 +224,7 @@ exports.updateProfile = async (userId, data, file) => {
     }
   }
 
-  
+
 
   // 🔥 IMAGE UPLOAD (NO STREAMIFIER)
   if (file && file.path) {
@@ -184,7 +238,7 @@ exports.updateProfile = async (userId, data, file) => {
     user.profileimage = file.path;
     user.public_id = file.filename;
 
-    
+
 
   }
 

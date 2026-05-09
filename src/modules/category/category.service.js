@@ -3,6 +3,7 @@ const Product = require("../product/product.model");
 const cloudinary = require("../../config/cloudinary");
 const mongoose = require("mongoose");
 const Brand = require("../brand/brand.model");
+const User = require("../auth/auth.model");
 
 // 🔹 Create
 exports.createCategory = async (data, file, userId) => {
@@ -66,23 +67,57 @@ exports.getCategoryById = async (id) => {
 
 
 // 🔹 Get All (Pagination + Search)
-exports.getAllCategories = async (query) => {
+exports.getAllCategories = async (query, user) => {
   const { page = 1, limit = 10, search = "" } = query;
 
   const matchStage = {
     name: { $regex: search, $options: "i" },
   };
 
+  let productMatch = {};
+
+  // 🔥 For B2C -> only ADMIN products
+  if (user.role === "B2C") {
+    const admins = await User.find({ role: "ADMIN" }).select("_id");
+
+    productMatch.createdBy = {
+      $in: admins.map((u) => u._id),
+    };
+  }
+
   const categories = await Category.aggregate([
     { $match: matchStage },
 
+    // 🔥 Brands lookup
     {
       $lookup: {
-        from: "brands", // 🔥 collection name
+        from: "brands",
         localField: "_id",
         foreignField: "category",
-        as: "brands"
-      }
+        as: "brands",
+      },
+    },
+
+    // 🔥 Products lookup (for B2C admin product count)
+    {
+      $lookup: {
+        from: "products",
+        let: { categoryId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$category", "$$categoryId"],
+              },
+            },
+          },
+
+          ...(Object.keys(productMatch).length
+            ? [{ $match: productMatch }]
+            : []),
+        ],
+        as: "products",
+      },
     },
 
     {
@@ -91,22 +126,27 @@ exports.getAllCategories = async (query) => {
           $map: {
             input: "$brands",
             as: "b",
-            in: "$$b._id"
-          }
+            in: "$$b._id",
+          },
         },
-        totalBrands: { $size: "$brands" }
-      }
+
+        totalBrands: { $size: "$brands" },
+
+        // 🔥 New field
+        productCount: { $size: "$products" },
+      },
     },
 
     {
       $project: {
-        brands: 0 // full data hide (optional)
-      }
+        brands: 0,
+        products: 0,
+      },
     },
 
     { $sort: { createdAt: -1 } },
-    { $skip: (page - 1) * limit },
-    { $limit: parseInt(limit) }
+    { $skip: (page - 1) * parseInt(limit) },
+    { $limit: parseInt(limit) },
   ]);
 
   const total = await Category.countDocuments(matchStage);
@@ -172,6 +212,7 @@ exports.deleteCategory = async (id) => {
 };
 
 // 🔥 Get Brands by Category
+
 exports.getBrandsByCategory = async (categoryId, query) => {
   const { page = 1, limit = 10 } = query;
 
@@ -182,27 +223,59 @@ exports.getBrandsByCategory = async (categoryId, query) => {
       }
     },
 
-    // 🔥 JOIN with products
+    // 🔥 Get products
     {
       $lookup: {
-        from: "products",        // 🔥 collection name
+        from: "products",
         localField: "_id",
         foreignField: "brand",
         as: "products"
       }
     },
 
-    // 🔥 COUNT products
+    // 🔥 Product-wise unwind
     {
-      $addFields: {
-        productCount: { $size: "$products" }
+      $unwind: {
+        path: "$products",
+        preserveNullAndEmptyArrays: true
       }
     },
 
-    // 🔥 REMOVE products array (optional)
+    // 🔥 Get creator
     {
-      $project: {
-        products: 0
+      $lookup: {
+        from: "users",
+        localField: "products.createdBy",
+        foreignField: "_id",
+        as: "creator"
+      }
+    },
+
+    {
+      $unwind: {
+        path: "$creator",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+
+    // 🔥 Regroup and count only B2B products
+    {
+      $group: {
+        _id: "$_id",
+        name: { $first: "$name" },
+        image: { $first: "$image" },
+        category: { $first: "$category" },
+        createdAt: { $first: "$createdAt" },
+
+        productCount: {
+          $sum: {
+            $cond: [
+              { $eq: ["$creator.role", "B2B"] },
+              1,
+              0
+            ]
+          }
+        }
       }
     },
 
@@ -228,12 +301,16 @@ exports.getBrandsByCategory = async (categoryId, query) => {
 exports.getMyCategories = async (query, userId) => {
   const { page = 1, limit = 10, search = "" } = query;
 
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
   const matchStage = {
     name: { $regex: search, $options: "i" }
   };
 
   const categories = await Category.aggregate([
-    { $match: matchStage },
+    {
+      $match: matchStage
+    },
 
     {
       $lookup: {
@@ -257,12 +334,12 @@ exports.getMyCategories = async (query, userId) => {
                   $match: {
                     $expr: {
                       $and: [
-                        { $eq: ["$brand", "$$brandId"] },
+                        // ✅ brand is now array
+                        { $in: ["$$brandId", "$brand"] },
+
+                        // ✅ user created product
                         {
-                          $eq: [
-                            "$createdBy",
-                            new mongoose.Types.ObjectId(userId)
-                          ]
+                          $eq: ["$createdBy", userObjectId]
                         }
                       ]
                     }
@@ -292,7 +369,9 @@ exports.getMyCategories = async (query, userId) => {
             in: "$$b._id"
           }
         },
-        totalBrands: { $size: "$myBrands" }
+        totalBrands: {
+          $size: "$myBrands"
+        }
       }
     },
 
@@ -302,9 +381,17 @@ exports.getMyCategories = async (query, userId) => {
       }
     },
 
-    { $sort: { createdAt: -1 } },
-    { $skip: (page - 1) * limit },
-    { $limit: parseInt(limit) }
+    {
+      $sort: { createdAt: -1 }
+    },
+
+    {
+      $skip: (Number(page) - 1) * Number(limit)
+    },
+
+    {
+      $limit: Number(limit)
+    }
   ]);
 
   const total = await Category.countDocuments(matchStage);
@@ -313,13 +400,15 @@ exports.getMyCategories = async (query, userId) => {
     categories,
     total,
     page: Number(page),
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / Number(limit))
   };
 };
 
 // 🔥 Get My Brands By Category
 exports.getMyBrandsByCategory = async (categoryId, query, userId) => {
   const { page = 1, limit = 10 } = query;
+
+  const userObjectId = new mongoose.Types.ObjectId(userId);
 
   const brands = await Brand.aggregate([
     {
@@ -337,13 +426,11 @@ exports.getMyBrandsByCategory = async (categoryId, query, userId) => {
             $match: {
               $expr: {
                 $and: [
-                  { $eq: ["$brand", "$$brandId"] },
-                  {
-                    $eq: [
-                      "$createdBy",
-                      new mongoose.Types.ObjectId(userId)
-                    ]
-                  }
+                  // ✅ brand is array now
+                  { $in: ["$$brandId", "$brand"] },
+
+                  // ✅ only user's products
+                  { $eq: ["$createdBy", userObjectId] }
                 ]
               }
             }
@@ -353,7 +440,7 @@ exports.getMyBrandsByCategory = async (categoryId, query, userId) => {
       }
     },
 
-    // सिर्फ वही brands जहाँ user ने product add किया
+    // only brands where user has products
     {
       $match: {
         "myProducts.0": { $exists: true }
@@ -372,15 +459,143 @@ exports.getMyBrandsByCategory = async (categoryId, query, userId) => {
       }
     },
 
+    {
+      $sort: { createdAt: -1 }
+    },
+
+    {
+      $skip: (Number(page) - 1) * Number(limit)
+    },
+
+    {
+      $limit: Number(limit)
+    }
+  ]);
+
+  // Better total count
+  const total = await Brand.aggregate([
+    {
+      $match: {
+        category: new mongoose.Types.ObjectId(categoryId)
+      }
+    },
+    {
+      $lookup: {
+        from: "products",
+        let: { brandId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $in: ["$$brandId", "$brand"] },
+                  { $eq: ["$createdBy", userObjectId] }
+                ]
+              }
+            }
+          }
+        ],
+        as: "myProducts"
+      }
+    },
+    {
+      $match: {
+        "myProducts.0": { $exists: true }
+      }
+    },
+    {
+      $count: "total"
+    }
+  ]);
+
+  const totalCount = total[0]?.total || 0;
+
+  return {
+    brands,
+    total: totalCount,
+    page: Number(page),
+    totalPages: Math.ceil(totalCount / Number(limit))
+  };
+};
+
+
+// User 
+exports.getUserCategories = async (query) => {
+  const { page = 1, limit = 10, search = "" } = query;
+
+  const matchStage = {
+    name: { $regex: search, $options: "i" }
+  };
+
+  const categories = await Category.aggregate([
+    { $match: matchStage },
+
+    {
+      $lookup: {
+        from: "brands",
+        let: { categoryId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ["$category", "$$categoryId"]
+              }
+            }
+          },
+
+          // 🔥 Join with users
+          {
+            $lookup: {
+              from: "users",
+              localField: "createdBy",
+              foreignField: "_id",
+              as: "creator"
+            }
+          },
+
+          {
+            $unwind: "$creator"
+          },
+
+          // 🔥 only admin created brands
+          {
+            $match: {
+              "creator.role": "ADMIN"
+            }
+          }
+        ],
+        as: "adminBrands"
+      }
+    },
+
+    {
+      $addFields: {
+        brandIds: {
+          $map: {
+            input: "$adminBrands",
+            as: "b",
+            in: "$$b._id"
+          }
+        },
+        totalBrands: { $size: "$adminBrands" }
+      }
+    },
+
+    {
+      $project: {
+        adminBrands: 0
+      }
+    },
+
     { $sort: { createdAt: -1 } },
     { $skip: (page - 1) * limit },
     { $limit: parseInt(limit) }
   ]);
 
-  const total = brands.length;
+  const total = await Category.countDocuments(matchStage);
 
   return {
-    brands,
+    categories,
     total,
     page: Number(page),
     totalPages: Math.ceil(total / limit)

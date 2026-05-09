@@ -13,12 +13,15 @@ router.post(
   categoryController.createCategory
 );
 
-router.get("/", categoryController.getCategories);
+router.get("/", verifyToken, categoryController.getCategories);
 router.get(
   "/my-categories",
   verifyToken,
   categoryController.getMyCategories
 );
+
+// User-specific categories 
+router.get("/user-categories", verifyToken, categoryController.getUserCategories);
 
 router.get("/:id/brands", categoryController.getBrandsByCategory);
 router.get(

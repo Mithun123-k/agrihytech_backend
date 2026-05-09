@@ -20,6 +20,19 @@ router.get("/", verifyToken, brandController.getAllBrands);
 router.get("/my-brands", verifyToken, brandController.getMyBrands);
 router.get("/:id", brandController.getBrandsByCategory);
 
+// User-specific brands
+router.get(
+  "/user/:categoryId",
+  brandController.getUserBrandsByCategory
+);
+
+// Get brands by product ID
+router.get(
+  "/product/:productId/brands",
+  verifyToken,
+  brandController.getBrandsByProductId
+);
+
 
 // 🔹 Update Brand
 router.put(
@@ -39,7 +52,8 @@ router.delete(
   brandController.deleteBrand
 );
 
-router.get("/:id/products", brandController.getProductsByBrand);
+router.get("/:id/products", verifyToken, brandController.getProductsByBrand);
+
 router.get(
   "/:id/my-products",
   verifyToken,

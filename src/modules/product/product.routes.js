@@ -21,6 +21,12 @@ router.post(
 // 🔹 Get All
 router.get("/", verifyToken, productController.getAllProducts);
 
+// get all products for admin (with pagination, filters, etc.)
+router.get(
+  "/user/:categoryId", verifyToken,
+  productController.getProductsByCategory
+);
+
 
 // 🔹 Get Single
 router.get("/:id", verifyToken, productController.getSingleProduct);

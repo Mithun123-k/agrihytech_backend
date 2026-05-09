@@ -21,3 +21,19 @@ exports.getHome = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getUserHomeData = async (req, res) => {
+  try {
+    const data = await homeService.getUserHomeData();
+
+    res.status(200).json({
+      message: "Home data fetched successfully",
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

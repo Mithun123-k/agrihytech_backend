@@ -40,18 +40,43 @@ exports.getBrandsByCategory = async (req, res) => {
   }
 };
 
+// User-specific brands
+exports.getUserBrandsByCategory = async (req, res) => {
+  try {
+    const result = await brandService.getUserBrandsByCategory(
+      req.params.categoryId,
+      req.query
+    );
+
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // 🔹 Get All
 exports.getAllBrands = async (req, res) => {
   try {
-    const result = await brandService.getAllBrands(req.query);
+    const result = await brandService.getAllBrands(
+      req.query,
+      req.user   // 🔥 THIS IS CRITICAL
+    );
 
     res.json({
-      message: "Brands fetched successfully",
-      ...result
+      success: true,
+      ...result,
     });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
 
@@ -96,17 +121,18 @@ exports.getProductsByBrand = async (req, res) => {
   try {
     const data = await brandService.getProductsByBrand(
       req.params.id,
-      req.query
+      req.query,
+      req.user
     );
 
-    res.json({
-      message: "Products fetched successfully",
-      ...data
+    res.status(200).json({
+      success: true,
+      ...data,
     });
-
-  } catch (err) {
-    res.status(404).json({
-      error: err.message
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
     });
   }
 };
@@ -137,6 +163,24 @@ exports.getMyProductsByBrand = async (req, res) => {
       req.params.id,
       req.user._id,
       req.query
+    );
+
+    res.status(200).json({
+      success: true,
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+exports.getBrandsByProductId = async (req, res) => {
+  try {
+    const data = await brandService.getBrandsByProductId(
+      req.params.productId
     );
 
     res.status(200).json({

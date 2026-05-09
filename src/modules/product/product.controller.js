@@ -7,7 +7,8 @@ exports.createProduct = async (req, res) => {
     const product = await productService.createProduct(
       req.body,
       req.files,
-      req.user._id
+      req.user._id,
+      req.user.role
     );
 
     res.status(201).json({
@@ -89,3 +90,22 @@ exports.deleteProduct = async (req, res) => {
   }
 };
 
+// get products by category
+exports.getProductsByCategory = async (req, res) => {
+  try {
+    const data = await productService.getProductsByCategory(
+      req.params.categoryId,
+      req.query
+    );
+
+    res.status(200).json({
+      success: true,
+      ...data
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

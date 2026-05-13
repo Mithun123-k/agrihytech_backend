@@ -40,6 +40,17 @@ const cloudinary = require("../../config/cloudinary");
 
 // 🔹 Create Product
 exports.createProduct = async (data, files, userId, userRole) => {
+  // 🔥 Product limit check for B2B
+  if (userRole === "B2B") {
+    const productCount = await Product.countDocuments({ createdBy: userId });
+
+    if (productCount >= 6) {
+      throw new Error(
+        "Product limit reached. You can only add 6 products. Delete an existing product to add a new one."
+      );
+    }
+  }
+
   // 🔥 validate brand
   let brandData;
 
@@ -70,6 +81,7 @@ exports.createProduct = async (data, files, userId, userRole) => {
   // 🔥 validate category
   if (data.category) {
     const catExists = await Category.findById(data.category);
+
     if (!catExists) {
       throw new Error("Invalid Category ID");
     }

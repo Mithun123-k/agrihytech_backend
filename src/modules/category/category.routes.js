@@ -23,7 +23,7 @@ router.get(
 // User-specific categories 
 router.get("/user-categories", verifyToken, categoryController.getUserCategories);
 
-router.get("/:id/brands", categoryController.getBrandsByCategory);
+router.get("/:id/brands", verifyToken, categoryController.getBrandsByCategory);
 router.get(
   "/:id/my-brands",
   verifyToken,

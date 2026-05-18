@@ -12,7 +12,7 @@ exports.getHomeData = async (userId) => {
 
   // 🔥 categories with brand usage (max 4)
   const categories = await Category.aggregate([
-    { $sort: { createdAt: -1 } },
+    { $sort: { createdAt: 1 } },
     { $limit: 4 },
 
     {
@@ -122,7 +122,7 @@ exports.getUserHomeData = async () => {
   // 🔹 categories with ADMIN brands only
   // 🔹 categories with ADMIN products count
   const categories = await Category.aggregate([
-    { $sort: { createdAt: -1 } },
+    { $sort: { createdAt: 1 } },
     { $limit: 4 },
 
     {

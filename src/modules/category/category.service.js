@@ -212,18 +212,28 @@ exports.deleteCategory = async (id) => {
 };
 
 // 🔥 Get Brands by Category
-
 exports.getBrandsByCategory = async (categoryId, query) => {
-  const { page = 1, limit = 10 } = query;
+  const {
+    page = 1,
+    limit = 10,
+    isAdmin = "false",
+    adminId
+  } = query;
+
+  const matchCondition = {
+    category: new mongoose.Types.ObjectId(categoryId)
+  };
+
+  // Only show admin-created brands
+  if (isAdmin === "true" && adminId) {
+    matchCondition.createdBy = new mongoose.Types.ObjectId(adminId);
+  }
 
   const brands = await Brand.aggregate([
     {
-      $match: {
-        category: new mongoose.Types.ObjectId(categoryId)
-      }
+      $match: matchCondition
     },
 
-    // 🔥 Get products
     {
       $lookup: {
         from: "products",
@@ -233,7 +243,6 @@ exports.getBrandsByCategory = async (categoryId, query) => {
       }
     },
 
-    // 🔥 Product-wise unwind
     {
       $unwind: {
         path: "$products",
@@ -241,7 +250,6 @@ exports.getBrandsByCategory = async (categoryId, query) => {
       }
     },
 
-    // 🔥 Get creator
     {
       $lookup: {
         from: "users",
@@ -258,7 +266,6 @@ exports.getBrandsByCategory = async (categoryId, query) => {
       }
     },
 
-    // 🔥 Regroup and count only B2B products
     {
       $group: {
         _id: "$_id",
@@ -284,9 +291,7 @@ exports.getBrandsByCategory = async (categoryId, query) => {
     { $limit: parseInt(limit) }
   ]);
 
-  const total = await Brand.countDocuments({
-    category: categoryId
-  });
+  const total = await Brand.countDocuments(matchCondition);
 
   return {
     brands,

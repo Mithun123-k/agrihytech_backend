@@ -24,7 +24,7 @@ exports.getCategories = async (req, res) => {
   try {
     const categories = await categoryService.getAllCategories(
       req.query,
-      req.user 
+      req.user
     );
     res.json(categories);
   } catch (err) {
@@ -80,7 +80,10 @@ exports.getBrandsByCategory = async (req, res) => {
   try {
     const data = await categoryService.getBrandsByCategory(
       req.params.id,
-      req.query
+      {
+        ...req.query,
+        adminId: req.user?._id
+      }
     );
 
     res.json({

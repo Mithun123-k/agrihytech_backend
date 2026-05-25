@@ -3,12 +3,20 @@ const mongoose = require("mongoose");
 const subscriptionSchema = new mongoose.Schema(
   {
     name: { type: String, required: true }, // Monthly / Yearly
-    type: { 
-      type: String, 
-      enum: ["MONTHLY", "YEARLY"], 
-      required: true 
+    type: {
+      type: String,
+      enum: ["MONTHLY", "YEARLY"],
+      required: true
     },
     price: { type: Number, required: true },
+    currency: {
+      type: String,
+      default: "INR"
+    },
+    isRecommended: {
+      type: Boolean,
+      default: false
+    },
     duration: { type: Number, required: true }, // days (30 / 365)
     trialDays: { type: Number, default: 0 },
     features: [{ type: String }],

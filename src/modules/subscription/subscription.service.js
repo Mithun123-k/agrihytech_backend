@@ -1,5 +1,102 @@
 const Subscription = require("./subscription.model");
 const User = require("../auth/auth.model");
+const razorpay = require("../../config/razorpay");
+const crypto = require("crypto");
+
+
+
+exports.createOrder = async (userId, planId) => {
+
+  const plan = await Subscription.findById(planId);
+
+  if (!plan) {
+    throw new Error("Plan not found");
+  }
+
+  const options = {
+    amount: plan.price * 100,
+    currency: "INR",
+    receipt: `receipt_${Date.now()}`
+  };
+
+  const order = await razorpay.orders.create(options);
+
+  return {
+    orderId: order.id,
+    amount: order.amount,
+    currency: order.currency,
+    key: process.env.RAZORPAY_KEY_ID,
+    plan
+  };
+};
+
+exports.verifyPayment = async (
+  userId,
+  {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    planId
+  }
+) => {
+
+  const body =
+    razorpay_order_id + "|" + razorpay_payment_id;
+
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    .update(body.toString())
+    .digest("hex");
+
+  const isAuthentic =
+    expectedSignature === razorpay_signature;
+
+  if (!isAuthentic) {
+    throw new Error("Invalid payment signature");
+  }
+
+  const plan = await Subscription.findById(planId);
+
+  if (!plan) {
+    throw new Error("Plan not found");
+  }
+
+  const user = await User.findById(userId);
+
+  const startDate = new Date();
+
+  const endDate = new Date();
+
+  endDate.setDate(
+    startDate.getDate() + plan.duration
+  );
+
+  user.subscription = {
+    planId: plan._id,
+
+    paymentStatus: "PAID",
+
+    razorpayOrderId: razorpay_order_id,
+
+    razorpayPaymentId: razorpay_payment_id,
+
+    razorpaySignature: razorpay_signature,
+
+    amount: plan.price,
+
+    currency: "INR",
+
+    startDate,
+
+    endDate,
+
+    isActive: true
+  };
+
+  await user.save();
+
+  return user;
+};
 
 // CREATE PLAN (ADMIN)
 exports.createPlan = async (data) => {
@@ -69,6 +166,10 @@ exports.activateTrial = async (userId) => {
 
   const user = await User.findById(userId);
 
+  if (user.trialUsed) {
+    throw new Error("Trial already used");
+  }
+
   // ❌ Already active subscription
   if (user.subscription?.isActive) {
     throw new Error("User already has active subscription");
@@ -91,6 +192,9 @@ exports.activateTrial = async (userId) => {
     endDate,
     isActive: true
   };
+
+
+  user.trialUsed = true;
 
   await user.save();
 

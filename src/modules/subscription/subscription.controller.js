@@ -1,5 +1,50 @@
 const service = require("./subscription.service");
 
+
+
+exports.createOrder = async (req, res) => {
+  try {
+
+    const response =
+      await service.createOrder(
+        req.user._id,
+        req.body.planId
+      );
+
+    res.json(response);
+
+  } catch (err) {
+
+    res.status(400).json({
+      error: err.message
+    });
+
+  }
+};
+
+exports.verifyPayment = async (req, res) => {
+  try {
+
+    const user =
+      await service.verifyPayment(
+        req.user._id,
+        req.body
+      );
+
+    res.json({
+      success: true,
+      user
+    });
+
+  } catch (err) {
+
+    res.status(400).json({
+      error: err.message
+    });
+
+  }
+};
+
 // CREATE PLAN
 exports.createPlan = async (req, res) => {
   try {

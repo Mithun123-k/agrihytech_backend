@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
   proprietorName: String,
   password: String,
 
-   profileimage: {
+  profileimage: {
     type: String,
     // required: true
   },
@@ -41,11 +41,42 @@ const userSchema = new mongoose.Schema({
 
   // 🔥 NEW: Subscription Field
   subscription: {
-    planId: { type: mongoose.Schema.Types.ObjectId, ref: "Subscription" },
+    planId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subscription"
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["PENDING", "PAID", "FAILED"],
+      default: "PENDING"
+    },
+
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpaySignature: String,
+
+    amount: Number,
+
+    currency: {
+      type: String,
+      default: "INR"
+    },
+
     startDate: Date,
+
     endDate: Date,
-    isActive: { type: Boolean, default: false }
-  }
+
+    isActive: {
+      type: Boolean,
+      default: false
+    }
+  },
+
+  trialUsed: {
+    type: Boolean,
+    default: false
+  },
 
 }, { timestamps: true });
 

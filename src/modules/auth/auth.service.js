@@ -227,12 +227,30 @@ exports.registerB2B = async (data) => {
 // auth.service.js
 
 // ✅ GET ME
+// exports.getMe = async (userId) => {
+//   const user = await User.findById(userId).select("-password");
+//   if (!user) throw new Error("User not found");
+//   return user;
+// };
+
+
 exports.getMe = async (userId) => {
-  const user = await User.findById(userId).select("-password");
-  if (!user) throw new Error("User not found");
+
+  const user = await User.findById(userId)
+
+    .populate({
+      path: "subscription.planId",
+      select: "name price duration"
+    })
+
+    .select("-password");
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
   return user;
 };
-
 
 
 // // ✅ UPDATE PROFILE (without streamifier)

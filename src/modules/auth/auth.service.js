@@ -5,6 +5,7 @@ const cloudinary = require("../../config/cloudinary");
 const client = require("../../config/twilio");
 const streamifier = require("streamifier");
 const fs = require("fs");
+const axios = require("axios");
 
 // 🔢 Generate 4 digit OTP
 const generateOTP = () => {
@@ -70,7 +71,7 @@ exports.sendOtp = async (mobile, role = "B2C") => {
     expiresAt: new Date(Date.now() + 5 * 60 * 1000),
   });
 
-  console.log("OTP:", otp);
+  // console.log("OTP:", otp);
 
   return {
     message: "OTP sent successfully",
@@ -127,8 +128,10 @@ exports.verifyOtp = async (mobile, otp, role) => {
   return { token, user };
 };
 
-// 🏢 Register B2B
+
+// User Register
 exports.registerB2B = async (data) => {
+
   const {
     mobile,
     firmName,
@@ -137,38 +140,86 @@ exports.registerB2B = async (data) => {
     state,
     district,
     village,
-    pincode,
-    lat,
-    lng
+    pincode
   } = data;
 
   const existing = await User.findOne({ mobile });
-  if (existing) throw new Error("User already exists");
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  if (existing) {
+    throw new Error("User already exists");
+  }
 
+  // 🔹 Get Lat/Lng from Pincode
+  let lat = 0;
+  let lng = 0;
+
+  try {
+
+    const response = await axios.get(
+      "https://nominatim.openstreetmap.org/search",
+      {
+        params: {
+          postalcode: pincode,
+          country: "India",
+          format: "json",
+          limit: 1
+        },
+        headers: {
+          "User-Agent": "your-app-name"
+        }
+      }
+    );
+
+    if (
+      response.data &&
+      response.data.length > 0
+    ) {
+
+      lat = parseFloat(response.data[0].lat);
+      lng = parseFloat(response.data[0].lon);
+    }
+
+  } catch (error) {
+
+    // console.log(
+    //   "Pincode location error:",
+    //   error.message
+    // );
+  }
+
+  // 🔹 Hash Password
+  const hashedPassword =
+    await bcrypt.hash(password, 10);
+
+  // 🔹 Create User
   const user = await User.create({
     mobile,
     role: "B2B",
     firmName,
     proprietorName,
     password: hashedPassword,
+
     location: {
       state,
       district,
       village,
       pincode,
+
       type: "Point",
+
       coordinates: [lng, lat]
     }
   });
 
-  // 🔥 USE MODEL METHOD
+  // 🔹 Generate Token
   const token = user.generateAuthToken();
 
   return {
-    message: "B2B Registered Successfully",
+    message:
+      "B2B Registered Successfully",
+
     token,
+
     user
   };
 };
@@ -184,64 +235,225 @@ exports.getMe = async (userId) => {
 
 
 
-// ✅ UPDATE PROFILE (without streamifier)
-exports.updateProfile = async (userId, data, file) => {
+// // ✅ UPDATE PROFILE (without streamifier)
+// exports.updateProfile = async (userId, data, file) => {
+//   const user = await User.findById(userId);
+//   if (!user) throw new Error("User not found");
+
+//   // ❌ restricted
+//   delete data.mobile;
+//   delete data.role;
+
+//   // parse location
+//   if (typeof data.location === "string") {
+//     data.location = JSON.parse(data.location);
+//   }
+
+//   // ✅ common
+//   if (data.name) user.name = data.name;
+//   if (data.email) user.email = data.email;
+//   if (data.proprietorName) user.proprietorName = data.proprietorName;
+
+//   // ✅ B2B
+//   if (user.role === "ADMIN" || user.role === "B2B") {
+//     if (data.firmName) user.firmName = data.firmName;
+
+//     if (data.location) {
+//       user.location = {
+//         ...user.location,
+//         ...data.location,
+//         type: "Point",
+//         coordinates: [
+//           data.location.lng || user.location.coordinates[0],
+//           data.location.lat || user.location.coordinates[1]
+//         ]
+//       };
+//     }
+
+//     if (data.password) {
+//       user.password = await bcrypt.hash(data.password, 10);
+//     }
+//   }
+
+
+
+//   // 🔥 IMAGE UPLOAD (NO STREAMIFIER)
+//   if (file && file.path) {
+//     // delete old image
+//     if (user?.public_id) {
+//       await cloudinary.uploader.destroy(user?.public_id);
+//     }
+
+
+//     // ✅ save new image
+//     user.profileimage = file.path;
+//     user.public_id = file.filename;
+
+
+
+//   }
+
+//   await user.save();
+
+//   user.password = undefined;
+
+//   return user;
+// };
+
+
+
+// ✅ UPDATE PROFILE
+exports.updateProfile = async (
+  userId,
+  data,
+  file
+) => {
+
   const user = await User.findById(userId);
-  if (!user) throw new Error("User not found");
+
+  if (!user) {
+    throw new Error("User not found");
+  }
 
   // ❌ restricted
   delete data.mobile;
   delete data.role;
 
-  // parse location
-  if (typeof data.location === "string") {
-    data.location = JSON.parse(data.location);
+  // 🔹 Parse Location
+  if (
+    typeof data.location === "string"
+  ) {
+    data.location =
+      JSON.parse(data.location);
   }
 
-  // ✅ common
-  if (data.name) user.name = data.name;
-  if (data.email) user.email = data.email;
-  if (data.proprietorName) user.proprietorName = data.proprietorName;
+  // ✅ Common
+  if (data.name) {
+    user.name = data.name;
+  }
 
-  // ✅ B2B
-  if (user.role === "ADMIN" || user.role === "B2B") {
-    if (data.firmName) user.firmName = data.firmName;
+  if (data.email) {
+    user.email = data.email;
+  }
 
+  if (data.proprietorName) {
+    user.proprietorName =
+      data.proprietorName;
+  }
+
+  // ✅ ADMIN / B2B
+  if (
+    user.role === "ADMIN" ||
+    user.role === "B2B"
+  ) {
+
+    if (data.firmName) {
+      user.firmName = data.firmName;
+    }
+
+    // 🔥 LOCATION UPDATE
     if (data.location) {
+
+      let lat =
+        data.location.lat ||
+        user?.location?.coordinates?.[1];
+
+      let lng =
+        data.location.lng ||
+        user?.location?.coordinates?.[0];
+
+      // 🔥 IF LAT/LNG NOT AVAILABLE
+      // THEN GET FROM PINCODE
+      if (
+        (!lat || !lng) &&
+        data.location.pincode
+      ) {
+
+        try {
+
+          const response =
+            await axios.get(
+              "https://nominatim.openstreetmap.org/search",
+              {
+                params: {
+                  postalcode:
+                    data.location.pincode,
+                  country: "India",
+                  format: "json",
+                  limit: 1
+                },
+                headers: {
+                  "User-Agent":
+                    "your-app-name"
+                }
+              }
+            );
+
+          if (
+            response.data &&
+            response.data.length > 0
+          ) {
+
+            lat = parseFloat(
+              response.data[0].lat
+            );
+
+            lng = parseFloat(
+              response.data[0].lon
+            );
+          }
+
+        } catch (error) {
+
+          // console.log(
+          //   "Pincode location error:",
+          //   error.message
+          // );
+        }
+      }
+
+      // ✅ Final Location Save
       user.location = {
         ...user.location,
         ...data.location,
+
         type: "Point",
+
         coordinates: [
-          data.location.lng || user.location.coordinates[0],
-          data.location.lat || user.location.coordinates[1]
+          lng || 0,
+          lat || 0
         ]
       };
     }
 
+    // 🔥 PASSWORD UPDATE
     if (data.password) {
-      user.password = await bcrypt.hash(data.password, 10);
+
+      user.password =
+        await bcrypt.hash(
+          data.password,
+          10
+        );
     }
   }
 
-
-
-  // 🔥 IMAGE UPLOAD (NO STREAMIFIER)
+  // 🔥 IMAGE UPLOAD
   if (file && file.path) {
+
     // delete old image
     if (user?.public_id) {
-      await cloudinary.uploader.destroy(user?.public_id);
+
+      await cloudinary.uploader.destroy(
+        user.public_id
+      );
     }
 
-
-    // ✅ save new image
+    // save new image
     user.profileimage = file.path;
     user.public_id = file.filename;
-
-
-
   }
 
+  // ✅ SAVE
   await user.save();
 
   user.password = undefined;

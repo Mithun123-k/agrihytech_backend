@@ -2,6 +2,8 @@ const Product = require("./product.model");
 const Brand = require("../brand/brand.model");
 const Category = require("../category/category.model");
 const cloudinary = require("../../config/cloudinary");
+const User = require("../auth/auth.model");
+const mongoose = require("mongoose");
 
 // 🔹 Create Product
 // exports.createProduct = async (data, files, userId) => {
@@ -135,20 +137,267 @@ exports.getAllProducts = async (query) => {
 };
 
 
+// ==================================================
+// 🔹 Calculate Distance Function
+// ==================================================
+
+const calculateDistance = (
+  lat1,
+  lon1,
+  lat2,
+  lon2
+) => {
+
+  const toRad = (value) =>
+    (value * Math.PI) / 180;
+
+  const R = 6371; // Earth Radius In KM
+
+  const dLat =
+    toRad(lat2 - lat1);
+
+  const dLon =
+    toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) *
+      Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return R * c;
+};
+
+// ==================================================
 // 🔹 Get Single Product
-exports.getSingleProduct = async (id) => {
-  const product = await Product.findById(id)
-    .populate("brand", "name image")
-    .populate("category", "name")
-    .populate("subCategory", "name");
+// ==================================================
+
+exports.getSingleProduct = async (
+  id,
+  userLatitude,
+  userLongitude,
+  userRole
+) => {
+
+  // ==================================================
+  // 🔹 PRODUCT DETAILS
+  // ==================================================
+
+  const product =
+    await Product.findById(id)
+      .populate("brand", "name image")
+      .populate("category", "name")
+      .populate("subCategory", "name")
+      .lean();
 
   if (!product) {
     throw new Error("Product not found");
   }
 
-  return product;
-};
+  // ==================================================
+  // 🔹 DEFAULT RESPONSE
+  // ==================================================
 
+  const responseData = {
+    product
+  };
+
+  // ==================================================
+  // 🔥 ONLY FOR B2C USERS
+  // ==================================================
+
+  if (
+    userRole === "B2C" &&
+    userLatitude &&
+    userLongitude
+  ) {
+
+    try {
+
+      // 🔹 Find Nearest B2B Shops
+      let nearestShops =
+        await User.aggregate([
+
+          {
+            $geoNear: {
+
+              near: {
+                type: "Point",
+
+                coordinates: [
+                  parseFloat(userLongitude),
+                  parseFloat(userLatitude)
+                ]
+              },
+
+              distanceField: "distance",
+
+              spherical: true,
+
+              // 🔹 10 KM Radius
+              maxDistance: 10000,
+
+              query: {
+                role: "B2B"
+              }
+            }
+          },
+
+          {
+            $project: {
+
+              firmName: 1,
+              proprietorName: 1,
+              mobile: 1,
+              location: 1,
+
+              // 🔹 Distance In Meter
+              distanceInMeters: {
+                $round: [
+                  "$distance",
+                  0
+                ]
+              },
+
+              // 🔹 Distance In KM
+              distanceInKm: {
+                $round: [
+                  {
+                    $divide: [
+                      "$distance",
+                      1000
+                    ]
+                  },
+                  1
+                ]
+              }
+            }
+          },
+
+          {
+            $limit: 3
+          }
+        ]);
+
+      // 🔹 Fallback
+      if (nearestShops.length === 0) {
+
+        nearestShops =
+          await User.find({
+            role: "B2B"
+          })
+            .select(`
+              firmName
+              proprietorName
+              mobile
+              location
+            `)
+            .limit(3)
+            .lean();
+      }
+
+      // 🔹 Add Response
+      responseData.nearestShops =
+        nearestShops;
+
+    } catch (error) {
+
+      console.log(
+        "Nearest shop error:",
+        error.message
+      );
+    }
+  }
+
+  // ==================================================
+  // 🔥 FOR B2B / ADMIN USERS
+  // ==================================================
+
+  if (
+    (userRole === "B2B" ||
+      userRole === "ADMIN") &&
+    userLatitude &&
+    userLongitude
+  ) {
+
+    try {
+
+      // 🔹 Product Owner Id
+      const ownerId =
+        product?.createdBy;
+
+      if (ownerId) {
+
+        // 🔹 Get Product Owner
+        const owner =
+          await User.findById(ownerId)
+            .select(`
+              firmName
+              proprietorName
+              mobile
+              location
+            `)
+            .lean();
+
+        if (
+          owner &&
+          owner?.location &&
+          owner?.location?.coordinates
+        ) {
+
+          const [
+            ownerLongitude,
+            ownerLatitude
+          ] =
+            owner.location.coordinates;
+
+          // 🔹 Calculate Distance
+          const distanceInKm =
+            calculateDistance(
+              parseFloat(userLatitude),
+              parseFloat(userLongitude),
+              parseFloat(ownerLatitude),
+              parseFloat(ownerLongitude)
+            );
+
+          // 🔹 Add Response
+          responseData.productOwner = {
+
+            ...owner,
+
+            distanceInKm:
+              Number(
+                distanceInKm.toFixed(1)
+              ),
+
+            distanceInMeters:
+              Math.round(
+                distanceInKm * 1000
+              )
+          };
+        }
+      }
+
+    } catch (error) {
+
+      console.log(
+        "Product owner error:",
+        error.message
+      );
+    }
+  }
+
+  return responseData;
+};
 
 // 🔹 Update Product
 exports.updateProduct = async (id, data, files) => {

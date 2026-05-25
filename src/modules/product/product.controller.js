@@ -43,18 +43,30 @@ exports.getAllProducts = async (req, res) => {
 // 🔹 Get Single
 exports.getSingleProduct = async (req, res) => {
   try {
-    const product = await productService.getSingleProduct(req.params.id);
+
+    const { lat, lng } = req.query;
+
+    // console.log(lat, lng)
+
+    const data = await productService.getSingleProduct(
+      req.params.id,
+      Number(lat),
+      Number(lng),
+      req.user.role
+    );
 
     res.json({
       message: "Product fetched successfully",
-      product
+      ...data
     });
 
   } catch (err) {
-    res.status(404).json({ error: err.message });
+
+    res.status(404).json({
+      error: err.message
+    });
   }
 };
-
 
 // 🔹 Update
 exports.updateProduct = async (req, res) => {

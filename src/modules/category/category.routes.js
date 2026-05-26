@@ -13,7 +13,15 @@ router.post(
   categoryController.createCategory
 );
 
+
+
 router.get("/", verifyToken, categoryController.getCategories);
+
+router.get(
+  "/public",
+  categoryController.getAllPublicCategories
+);
+
 router.get(
   "/my-categories",
   verifyToken,

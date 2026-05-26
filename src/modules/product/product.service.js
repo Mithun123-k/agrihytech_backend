@@ -204,6 +204,13 @@ exports.getSingleProduct = async (
   }
 
   // ==================================================
+  // 🔥 PRODUCT CATEGORY NAME
+  // ==================================================
+
+  const productCategoryName =
+    product?.category?.name;
+
+  // ==================================================
   // 🔹 DEFAULT RESPONSE
   // ==================================================
 
@@ -234,8 +241,8 @@ exports.getSingleProduct = async (
                 type: "Point",
 
                 coordinates: [
-                  parseFloat(userLongitude),
-                  parseFloat(userLatitude)
+                  Number(userLongitude),
+                  Number(userLatitude)
                 ]
               },
 
@@ -246,8 +253,14 @@ exports.getSingleProduct = async (
               // 🔹 10 KM Radius
               maxDistance: 10000,
 
+              // 🔥 ONLY SAME CATEGORY + ACTIVE SUBSCRIPTION USERS
               query: {
-                role: "B2B"
+                role: "B2B",
+
+                categories:
+                  productCategoryName,
+
+                "subscription.isActive": true
               }
             }
           },
@@ -260,7 +273,7 @@ exports.getSingleProduct = async (
               mobile: 1,
               location: 1,
 
-              // 🔹 Distance In Meter
+              // 🔥 DISTANCE IN METERS
               distanceInMeters: {
                 $round: [
                   "$distance",
@@ -268,17 +281,19 @@ exports.getSingleProduct = async (
                 ]
               },
 
-              // 🔹 Distance In KM
+              // 🔥 DISTANCE IN KM
               distanceInKm: {
-                $round: [
-                  {
-                    $divide: [
-                      "$distance",
-                      1000
-                    ]
-                  },
-                  1
-                ]
+                $toDouble: {
+                  $round: [
+                    {
+                      $divide: [
+                        "$distance",
+                        1000
+                      ]
+                    },
+                    1
+                  ]
+                }
               }
             }
           },
@@ -288,12 +303,24 @@ exports.getSingleProduct = async (
           }
         ]);
 
-      // 🔹 Fallback
+      // ==================================================
+      // 🔹 FALLBACK USERS
+      // ==================================================
+
       if (nearestShops.length === 0) {
 
-        nearestShops =
+        const fallbackUsers =
           await User.find({
-            role: "B2B"
+
+            role: "B2B",
+
+            // 🔥 SAME CATEGORY USERS
+            categories:
+              productCategoryName,
+
+            // 🔥 ONLY ACTIVE SUBSCRIPTION USERS
+            "subscription.isActive": true
+
           })
             .select(`
               firmName
@@ -303,6 +330,62 @@ exports.getSingleProduct = async (
             `)
             .limit(3)
             .lean();
+
+        // 🔥 MANUAL DISTANCE CALCULATION
+        nearestShops =
+          fallbackUsers.map(
+            (shop) => {
+
+              let distanceInKm = 0;
+
+              if (
+                shop?.location
+                  ?.coordinates &&
+                shop.location
+                  .coordinates
+                  .length === 2
+              ) {
+
+                const [
+                  shopLongitude,
+                  shopLatitude
+                ] =
+                  shop.location
+                    .coordinates;
+
+                distanceInKm =
+                  Number(
+                    calculateDistance(
+                      Number(
+                        userLatitude
+                      ),
+                      Number(
+                        userLongitude
+                      ),
+                      Number(
+                        shopLatitude
+                      ),
+                      Number(
+                        shopLongitude
+                      )
+                    ).toFixed(1)
+                  );
+              }
+
+              return {
+
+                ...shop,
+
+                distanceInKm,
+
+                distanceInMeters:
+                  Math.round(
+                    distanceInKm *
+                      1000
+                  )
+              };
+            }
+          );
       }
 
       // 🔹 Add Response
@@ -345,6 +428,7 @@ exports.getSingleProduct = async (
               proprietorName
               mobile
               location
+              subscription
             `)
             .lean();
 
@@ -362,11 +446,21 @@ exports.getSingleProduct = async (
 
           // 🔹 Calculate Distance
           const distanceInKm =
-            calculateDistance(
-              parseFloat(userLatitude),
-              parseFloat(userLongitude),
-              parseFloat(ownerLatitude),
-              parseFloat(ownerLongitude)
+            Number(
+              calculateDistance(
+                Number(
+                  userLatitude
+                ),
+                Number(
+                  userLongitude
+                ),
+                Number(
+                  ownerLatitude
+                ),
+                Number(
+                  ownerLongitude
+                )
+              )
             );
 
           // 🔹 Add Response
@@ -374,15 +468,29 @@ exports.getSingleProduct = async (
 
             ...owner,
 
+            // 🔥 HIDE MOBILE IF SUBSCRIPTION INACTIVE
+            mobile:
+              owner?.subscription
+                ?.isActive
+                ? owner.mobile
+                : null,
+
             distanceInKm:
-              Number(
-                distanceInKm.toFixed(1)
-              ),
+              isNaN(distanceInKm)
+                ? 0
+                : Number(
+                    distanceInKm.toFixed(
+                      1
+                    )
+                  ),
 
             distanceInMeters:
-              Math.round(
-                distanceInKm * 1000
-              )
+              isNaN(distanceInKm)
+                ? 0
+                : Math.round(
+                    distanceInKm *
+                      1000
+                  )
           };
         }
       }

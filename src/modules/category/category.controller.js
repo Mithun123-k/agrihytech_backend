@@ -20,6 +20,26 @@ exports.createCategory = async (req, res) => {
   }
 };
 
+
+exports.getAllPublicCategories = async (req, res) => {
+  try {
+    const categories = await categoryService.getAllPublicCategories(
+      req.query
+    );
+
+    res.status(200).json({
+      success: true,
+      categories
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 exports.getCategories = async (req, res) => {
   try {
     const categories = await categoryService.getAllCategories(

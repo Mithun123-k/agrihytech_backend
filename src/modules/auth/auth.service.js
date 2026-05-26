@@ -131,16 +131,15 @@ exports.verifyOtp = async (mobile, otp, role) => {
 
 // User Register
 exports.registerB2B = async (data) => {
-
   const {
     mobile,
     firmName,
     proprietorName,
-    password,
     state,
     district,
     village,
-    pincode
+    pincode,
+    categories
   } = data;
 
   const existing = await User.findOne({ mobile });
@@ -149,12 +148,16 @@ exports.registerB2B = async (data) => {
     throw new Error("User already exists");
   }
 
+  // ✅ enforce max 2 categories
+  if (categories && categories.length > 2) {
+    throw new Error("Maximum 2 categories allowed");
+  }
+
   // 🔹 Get Lat/Lng from Pincode
   let lat = 0;
   let lng = 0;
 
   try {
-
     const response = await axios.get(
       "https://nominatim.openstreetmap.org/search",
       {
@@ -170,56 +173,38 @@ exports.registerB2B = async (data) => {
       }
     );
 
-    if (
-      response.data &&
-      response.data.length > 0
-    ) {
-
+    if (response.data?.length > 0) {
       lat = parseFloat(response.data[0].lat);
       lng = parseFloat(response.data[0].lon);
     }
-
   } catch (error) {
-
-    // console.log(
-    //   "Pincode location error:",
-    //   error.message
-    // );
+    // silent fail
   }
 
-  // 🔹 Hash Password
-  const hashedPassword =
-    await bcrypt.hash(password, 10);
-
-  // 🔹 Create User
+  // 🔹 Create User (NO PASSWORD)
   const user = await User.create({
     mobile,
     role: "B2B",
     firmName,
     proprietorName,
-    password: hashedPassword,
+
+    categories: categories || [],
 
     location: {
       state,
       district,
       village,
       pincode,
-
       type: "Point",
-
       coordinates: [lng, lat]
     }
   });
 
-  // 🔹 Generate Token
   const token = user.generateAuthToken();
 
   return {
-    message:
-      "B2B Registered Successfully",
-
+    message: "B2B Registered Successfully",
     token,
-
     user
   };
 };

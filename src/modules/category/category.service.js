@@ -23,6 +23,36 @@ exports.createCategory = async (data, file, userId) => {
   });
 };
 
+// get All public categories
+exports.getAllPublicCategories = async (query) => {
+  const { search = "" } = query;
+
+  const categories = await Category.aggregate([
+    {
+      $match: {
+        name: { $regex: search, $options: "i" }
+      }
+    },
+
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        image: 1
+      }
+    },
+
+    {
+      $sort: { name: 1 }
+    }
+  ]);
+
+  return categories.map((cat) => ({
+    id: cat._id,
+    name: cat.name,
+    image: cat.image || null
+  }));
+};
 
 // 🔹 Get By ID
 exports.getCategoryById = async (id) => {

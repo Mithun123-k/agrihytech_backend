@@ -10,6 +10,16 @@ const userSchema = new mongoose.Schema({
   firmName: String,
   proprietorName: String,
   password: String,
+  categories: {
+    type: [String],
+    default: [],
+    validate: {
+      validator: function (v) {
+        return v.length <= 2;
+      },
+      message: "Maximum 2 categories allowed"
+    }
+  },
 
   profileimage: {
     type: String,

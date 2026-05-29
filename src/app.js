@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 
@@ -8,6 +9,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static("uploads"));
+app.use(
+  express.static(
+    path.join(__dirname, "public")
+  )
+);
 
 // ✅ Routes Import
 const authRoutes = require("./modules/auth/auth.routes");
@@ -28,6 +34,15 @@ app.use("/api/banners", bannerRoutes)
 app.use("/api/home", homeRoutes)
 app.use("/api/subscription", subscriptionRoutes)
 app.use("/api", searchRoute)
+app.get("/delete-account", (req, res) => {
+  res.sendFile(
+    path.join(
+      __dirname,
+      "public",
+      "delete-account.html"
+    )
+  );
+});
 
 
 

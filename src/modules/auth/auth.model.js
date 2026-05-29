@@ -88,6 +88,25 @@ const userSchema = new mongoose.Schema({
     default: false
   },
 
+  // 🔥 DELETE REQUEST
+  deleteRequest: {
+
+    requested: {
+      type: Boolean,
+      default: false
+    },
+
+    reason: {
+      type: String,
+      default: ""
+    },
+
+    requestedAt: {
+      type: Date,
+      default: null
+    }
+  }
+
 }, { timestamps: true });
 
 // ✅ INDEX

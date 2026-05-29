@@ -62,3 +62,84 @@ exports.updateProfile = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
+
+
+// 🔥 ACCOUNT DELETE REQUEST
+exports.requestAccountDeletion = async (req, res) => {
+
+    try {
+
+      const data =
+        await authService
+          .requestAccountDeletion(
+            req.user.id,
+            req.body.reason
+          );
+
+      res.json({
+        success: true,
+        ...data
+      });
+
+    } catch (err) {
+
+      res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  };
+
+
+
+// 🔥 GET DELETE REQUEST USERS
+exports.getDeleteRequestUsers =async (req, res) => {
+
+    try {
+
+      const users =
+        await authService
+          .getDeleteRequestUsers(
+            req.user.id
+          );
+
+      res.json({
+        success: true,
+        users
+      });
+
+    } catch (err) {
+
+      res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  };
+
+
+
+// 🔥 DELETE USER (ADMIN)
+exports.deleteUser = async (req, res) => {
+
+    try {
+
+      const data =
+        await authService.deleteUser(
+          req.user.id,
+          req.params.id
+        );
+
+      res.json({
+        success: true,
+        ...data
+      });
+
+    } catch (err) {
+
+      res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  };

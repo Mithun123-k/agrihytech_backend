@@ -6,6 +6,7 @@ const client = require("../../config/twilio");
 const streamifier = require("streamifier");
 const fs = require("fs");
 const axios = require("axios");
+const Product = require("../product/product.model");
 
 // 🔢 Generate 4 digit OTP
 const generateOTP = () => {
@@ -462,4 +463,204 @@ exports.updateProfile = async (
   user.password = undefined;
 
   return user;
+};
+
+
+
+// ✅ ACCOUNT DELETE REQUEST
+exports.requestAccountDeletion = async (
+    userId,
+    reason = ""
+  ) => {
+
+    const user =
+      await User.findById(userId);
+
+    if (!user) {
+      throw new Error(
+        "User not found"
+      );
+    }
+
+    // ❌ already requested
+    if (
+      user.deleteRequest
+        ?.requested
+    ) {
+
+      throw new Error(
+        "Delete request already submitted"
+      );
+    }
+
+    // ✅ save request
+    user.deleteRequest = {
+
+      requested: true,
+
+      reason:
+        reason || "",
+
+      requestedAt:
+        new Date()
+    };
+
+    await user.save();
+
+    return {
+      message:
+        "Account deletion request submitted successfully"
+    };
+  };
+
+
+
+// ✅ GET DELETE REQUEST USERS
+exports.getDeleteRequestUsers = async (adminId) => {
+
+    const admin =
+      await User.findById(
+        adminId
+      );
+
+    if (!admin) {
+
+      throw new Error(
+        "Admin not found"
+      );
+    }
+
+    // ❌ only admin
+    if (
+      admin.role !== "ADMIN"
+    ) {
+
+      throw new Error(
+        "Only admin can access delete requests"
+      );
+    }
+
+    const users =
+      await User.find({
+
+        "deleteRequest.requested":
+          true
+
+      })
+        .select(`
+          mobile
+          role
+          firmName
+          proprietorName
+          deleteRequest
+          createdAt
+        `)
+
+        .sort({
+          "deleteRequest.requestedAt":
+            -1
+        });
+
+    return users;
+  };
+
+
+
+// ✅ DELETE USER (ADMIN ONLY)
+exports.deleteUser = async (
+  adminId,
+  userId
+) => {
+
+  const admin =
+    await User.findById(
+      adminId
+    );
+
+  if (!admin) {
+
+    throw new Error(
+      "Admin not found"
+    );
+  }
+
+  // ❌ only admin allowed
+  if (
+    admin.role !== "ADMIN"
+  ) {
+
+    throw new Error(
+      "Only admin can delete users"
+    );
+  }
+
+  const user =
+    await User.findById(
+      userId
+    );
+
+  if (!user) {
+
+    throw new Error(
+      "User not found"
+    );
+  }
+
+  // 🔥 delete profile image
+  if (user?.public_id) {
+
+    await cloudinary
+      .uploader
+      .destroy(
+        user.public_id
+      );
+  }
+
+  // 🔥 get user's products
+  const products =
+    await Product.find({
+      createdBy: userId
+    });
+
+  // 🔥 delete product images
+  for (const product of products) {
+
+    if (
+      product.images &&
+      product.images.length > 0
+    ) {
+
+      for (const img of product.images) {
+
+        if (img.public_id) {
+
+          await cloudinary
+            .uploader
+            .destroy(
+              img.public_id
+            );
+        }
+      }
+    }
+  }
+
+  // 🔥 delete products
+  await Product.deleteMany({
+    createdBy: userId
+  });
+
+  // 🔥 delete OTPs
+  await OTP.deleteMany({
+    mobile: user.mobile
+  });
+
+  // 🔥 delete user
+  await User.findByIdAndDelete(
+    userId
+  );
+
+  return {
+    message:
+      "User deleted successfully"
+  };
 };

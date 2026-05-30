@@ -10,7 +10,8 @@ const Product = require("../product/product.model");
 
 // 🔢 Generate 4 digit OTP
 const generateOTP = () => {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  // return Math.floor(1000 + Math.random() * 9000).toString();
+  return "1234"; // for testing only
 };
 
 
